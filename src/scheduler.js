@@ -38,6 +38,12 @@ class Scheduler {
   cancel (id) {
     return this._redis.schedulerCancel(id)
   }
+
+  readyCount () {
+    const key = "__REDIS_SCHED_DELAYED_QUEUE__"
+    return this._redis.zrangebyscore(key, 0, Date.now())
+      .then(data => data.length);
+  }
 }
 
 module.exports = Scheduler;

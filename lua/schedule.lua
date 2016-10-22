@@ -15,8 +15,7 @@ local millis = tonumber(ARGV[4])
 
 local score = tostring(millis + delay)
 
--- set the internal mapping of external_id to internal_id
--- (which is just the zset score)
+-- set the mapping of external_id to internal_id (which is just the zset score)
 redis.call("HSET", id_mapping_key, external_id, score)
 
 -- set the reverse mapping. this is so we can remove the original

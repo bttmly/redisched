@@ -6,7 +6,7 @@ local score_mapping_key = "__REDIS_SCHED_SCORE_TO_ID__"
 
 local max_score = ARGV[1]
 
-redis.debug("max score:", max_score)
+-- redis.debug("max score:", max_score)
 
 -- get an item from the delayed queue
 local resp = redis.call(

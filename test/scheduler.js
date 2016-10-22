@@ -1,4 +1,6 @@
 const Redis = require("ioredis");
+const expect = require("expect");
+
 const Scheduler = require("../src/scheduler");
 
 const wait = delay => new Promise(r => setTimeout(r, delay))
@@ -16,23 +18,38 @@ describe("scheduler", function () {
   });
 
   it("works", function () {
-    return scheduler.schedule("id1", "hello")
+    return Promise.resolve()
+      // check immediate job
+      .then(function () {
+        return scheduler.schedule("id1", "hello")
+      })
       .then(function (out) {
-        console.log("out", out);
-        return scheduler.get()
+        return scheduler.get().then(job => expect(job).toBe("hello"))
+      })
+      // check a delayed job
+      .then(function () {
+        return scheduler.schedule("id2", "delayed", 100)
+      })
+      .then(function () {
+        return scheduler.get().then(job => expect(job).toBe(null))
+      })
+      .then(function () {
+        return wait(200).then(() => scheduler.get())
       })
       .then(function (job) {
-        console.log("job", job)
-        return scheduler.schedule("id2", "delayed", 500)
+        expect(job).toBe("delayed");
       })
+      // check cancellation
       .then(function () {
-        return wait(1000)
+        return scheduler.schedule("id3", "cancelled").then(() => scheduler.readyCount())
       })
-      .then(function () {
-        return scheduler.get()
+      .then(function (count) {
+        expect(count).toBe(1);
+        return scheduler.cancel("id3").then(() => scheduler.readyCount())
       })
-      .then(console.log);
-
-  });
+      .then(function (count) {
+        expect(count).toBe(0);
+      });
+    });
 
 });

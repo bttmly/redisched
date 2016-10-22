@@ -13,6 +13,7 @@
   "license": "MIT",
   "devDependencies": {
     "bluebird": "^3.4.6",
+    "expect": "^1.20.2",
     "ioredis": "^2.4.0",
     "mocha": "^3.1.2"
   }
