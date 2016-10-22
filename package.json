@@ -7,11 +7,13 @@
     "test": "test"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha"
   },
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "ioredis": "^2.4.0"
+    "bluebird": "^3.4.6",
+    "ioredis": "^2.4.0",
+    "mocha": "^3.1.2"
   }
 }
