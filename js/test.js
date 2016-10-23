@@ -1,7 +1,7 @@
 const Redis = require("ioredis");
 const expect = require("expect");
 
-const Scheduler = require("../src/scheduler");
+const Scheduler = require("./scheduler");
 
 const wait = delay => new Promise(r => setTimeout(r, delay))
 
