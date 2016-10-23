@@ -1,10 +1,10 @@
 const path = require("path");
 const fs = require("fs");
 
-const scriptDir = path.join(__dirname, "../lua");
-const getScript = fs.readFileSync(path.join(scriptDir, "get.lua"), "utf8");
-const cancelScript = fs.readFileSync(path.join(scriptDir, "cancel.lua"), "utf8");
-const scheduleScript = fs.readFileSync(path.join(scriptDir, "schedule.lua"), "utf8");
+const readScript = name => fs.readFileSync(path.join(__dirname, `../lua/${name}.lua`), "utf8")
+const getScript = readScript("get");
+const cancelScript = readScript("cancel");
+const scheduleScript = readScript("schedule");
 
 const defaultKeys = {
   queue: "__REDIS_SCHED_DELAYED_QUEUE__",
