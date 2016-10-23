@@ -10,8 +10,8 @@ Schedules a job to run at the expiration time. A client might expose this as 'de
 - `cancel(id: string): number`
 Cancels the job with the given id. Returns `1` if a job was cancelled, otherwise `0`
 
-- `get(): string?`
-Gets a single job which has passed it's expiration time. If there is a ready job, returns it as a string, otherwise returns `nil`
+- `get(max number): string?`
+Gets the first job with expiration less than `max`. If there is a ready job, returns it as a string, otherwise returns `nil`. Generally you'll pass the current Unix timestamp as the `max` argument. The argument is necessary because the script can't use something like `redis.time()` to supply it (for reasons related to replication and determinism).
 
 ### Configuration
 The Lua scripts use three keys to store data: a sorted set for the jobs themselves and two hashes for mapping between ids and sorted set scores. The initial values are `__REDIS_SCHED_DELAYED_QUEUE__`, `__REDIS_SCHED_ID_TO_SCORE__`, `__REDIS_SCHED_SCORE_TO_ID__` and can be configured by simple string replacement on the script.
