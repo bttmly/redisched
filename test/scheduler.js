@@ -14,7 +14,8 @@ describe("scheduler", function () {
   });
 
   afterEach(function() {
-    redis.disconnect();
+    return redis.flushdb()
+      .then(() => redis.disconnect());
   });
 
   it("works", function () {

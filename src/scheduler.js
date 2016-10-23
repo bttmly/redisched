@@ -2,17 +2,47 @@ const path = require("path");
 const fs = require("fs");
 
 const scriptDir = path.join(__dirname, "../lua");
+const getScript = fs.readFileSync(path.join(scriptDir, "get.lua"), "utf8");
+const cancelScript = fs.readFileSync(path.join(scriptDir, "cancel.lua"), "utf8");
+const scheduleScript = fs.readFileSync(path.join(scriptDir, "schedule.lua"), "utf8");
 
-const getScript = fs.readFileSync(path.join(scriptDir, "get.lua"), "utf8")
-const cancelScript = fs.readFileSync(path.join(scriptDir, "cancel.lua"), "utf8")
-const scheduleScript = fs.readFileSync(path.join(scriptDir, "schedule.lua"), "utf8")
+const defaultKeys = {
+  queue: "__REDIS_SCHED_DELAYED_QUEUE__",
+  idMapping: "__REDIS_SCHED_ID_TO_SCORE__",
+  scoreMapping: "__REDIS_SCHED_SCORE_TO_ID__",
+};
+
+const scriptNames = ["_cancelScript", "_scheduleScript", "_getScript"];
 
 class Scheduler {
   constructor (redis) {
     this._redis = redis;
     this._cancelScript = cancelScript;
     this._scheduleScript = scheduleScript;
-    this._getScript = getScript
+    this._getScript = getScript;
+    this._keys = Object.create(defaultKeys);
+    this._defineCommands();
+  }
+
+  get () {
+    return this._redis.schedulerGet(Date.now());
+  }
+
+  schedule (id, body, delay = 0) {
+    const expiry = Date.now() + delay;
+    return this._redis.schedulerSchedule(id, body, expiry)
+  }
+
+  cancel (id) {
+    return this._redis.schedulerCancel(id)
+  }
+
+  readyCount () {
+    return this._redis.zrangebyscore(this._keys.queue, 0, Date.now())
+      .then(data => data.length);
+  }
+
+  _defineCommands () {
     this._redis.defineCommand("schedulerSchedule", {
       numberOfKeys: 0,
       lua: this._scheduleScript,
@@ -27,22 +57,15 @@ class Scheduler {
     });
   }
 
-  get () {
-    return this._redis.schedulerGet(Date.now());
-  }
+  replaceKey (which, newVal) {
+    const oldVal = this._keys[which];
+    if (oldVal == null) return;
 
-  schedule (id, body, delay = 0) {
-    return this._redis.schedulerSchedule(id, body, delay, Date.now())
-  }
-
-  cancel (id) {
-    return this._redis.schedulerCancel(id)
-  }
-
-  readyCount () {
-    const key = "__REDIS_SCHED_DELAYED_QUEUE__"
-    return this._redis.zrangebyscore(key, 0, Date.now())
-      .then(data => data.length);
+    scriptNames.forEach(function (name) {
+      this[name] = this[name].replace(oldVal, newVal);
+    });
+    this._keys[which] = newVal;
+    this._defineCommands();
   }
 }
 
