@@ -1,6 +1,6 @@
 # redisched
 
-Lua scripts that implement a simple, cancellable, delayed-job interface on top of Redis. Also includes a basic Node.js client that uses these scripts via the Redis [`EXEC`](http://redis.io/commands/exec) command. However, The Lua scripts are general-purpose can be used by a client written in any programming language. Many common Redis clients expose an ergonomic interface for scripting.
+`redisched` is a small collection Lua scripts that implement a simple, cancellable, delayed-job interface on top of Redis. This repo includes a basic Node.js client that uses these scripts via the Redis [`EXEC`](http://redis.io/commands/exec) command. However, The Lua scripts are general-purpose can be used by a client written in any programming language. Many common Redis clients expose an ergonomic interface for scripting.
 
 ### Scripts/methods
 
