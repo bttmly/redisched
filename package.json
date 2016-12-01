@@ -16,5 +16,8 @@
     "expect": "^1.20.2",
     "ioredis": "^2.4.0",
     "mocha": "^3.1.2"
+  },
+  "dependencies": {
+    "present": "^1.0.0"
   }
 }

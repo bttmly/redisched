@@ -1,6 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
+const present = require("present");
 
 const readScript = name => fs.readFileSync(path.join(__dirname, `../lua/${name}.lua`), "utf8")
 const getScript = readScript("get");
@@ -12,10 +13,13 @@ const defaultKeys = {
   scoreMapping: "__REDIS_SCHED_SCORE_TO_ID__",
 };
 
+const MULTIPLIER = 1000;
+
 const scriptNames = ["_cancelScript", "_scheduleScript", "_getScript"];
 
 class Scheduler {
   constructor (redis) {
+    this._ctr = 0;
     this._redis = redis;
     this._cancelScript = cancelScript;
     this._scheduleScript = scheduleScript;
@@ -25,7 +29,7 @@ class Scheduler {
   }
 
   get () {
-    return this._redis.schedulerGet(Date.now())
+    return this._redis.schedulerGet(Date.now() * MULTIPLIER)
       .then(function (body) {
         if (body === null) return body;
         // slice off the random identifier
@@ -34,9 +38,9 @@ class Scheduler {
   }
 
   schedule (id, body, delay = 0) {
-    const expiry = Date.now() + delay;
+    const score = ((Date.now() + delay) * MULTIPLIER) + this._inc();
     const randomSuffix = crypto.randomBytes(16).toString("hex") // body uniqueness is important
-    return this._redis.schedulerSchedule(id, body, expiry)
+    return this._redis.schedulerSchedule(id, body, score)
   }
 
   cancel (id) {
@@ -72,6 +76,14 @@ class Scheduler {
     });
     this._keys[which] = newVal;
     this._defineCommands();
+  }
+
+  _inc () {
+    this._ctr++;
+    if (this._ctr === MULTIPLIER) {
+      this._ctr = 0;
+    }
+    return this._ctr;
   }
 }
 

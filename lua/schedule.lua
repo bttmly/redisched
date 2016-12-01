@@ -8,12 +8,16 @@ local external_id = ARGV[1]
 local body = ARGV[2]
 local score = ARGV[3]
 
--- redis.debug("stuff:", external_id, body, score)
+-- scores MUST BE UNIQUE!
+-- scan forward to find the next available score
+while true do
+  local exists = redis.call("HEXISTS", score_mapping_key, score)
+  if exists == 0 then break end
+  score = score + 1
+end
 
 -- set the mapping of external_id to internal_id (which is just the zset score)
 redis.call("HSET", id_mapping_key, external_id, score)
-
--- NOTE -- this is broken! We can't accommodate the same score more than once :(
 
 -- set the reverse mapping. this is so we can remove the original
 -- mapping when we only have the score
