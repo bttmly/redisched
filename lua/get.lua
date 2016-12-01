@@ -40,6 +40,6 @@ redis.call("HDEL", id_mapping_key, external_id)
 redis.call("HDEL", score_mapping_key, score)
 
 -- delete the job from the delayed queue
-redis.call("ZREMRANGEBYSCORE", queue_key, score, score)
+redis.call("ZREM", queue_key, job)
 
 return job

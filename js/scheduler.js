@@ -1,11 +1,11 @@
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 
 const readScript = name => fs.readFileSync(path.join(__dirname, `../lua/${name}.lua`), "utf8")
 const getScript = readScript("get");
 const cancelScript = readScript("cancel");
 const scheduleScript = readScript("schedule");
-
 const defaultKeys = {
   queue: "__REDIS_SCHED_DELAYED_QUEUE__",
   idMapping: "__REDIS_SCHED_ID_TO_SCORE__",
@@ -25,11 +25,17 @@ class Scheduler {
   }
 
   get () {
-    return this._redis.schedulerGet(Date.now());
+    return this._redis.schedulerGet(Date.now())
+      .then(function (body) {
+        if (body === null) return body;
+        // slice off the random identifier
+        return body.slice(0, -32)
+      });
   }
 
   schedule (id, body, delay = 0) {
     const expiry = Date.now() + delay;
+    const randomSuffix = crypto.randomBytes(16).toString("hex") // body uniqueness is important
     return this._redis.schedulerSchedule(id, body, expiry)
   }
 
