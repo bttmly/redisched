@@ -13,6 +13,8 @@ local score = ARGV[3]
 -- set the mapping of external_id to internal_id (which is just the zset score)
 redis.call("HSET", id_mapping_key, external_id, score)
 
+-- NOTE -- this is broken! We can't accommodate the same score more than once :(
+
 -- set the reverse mapping. this is so we can remove the original
 -- mapping when we only have the score
 redis.call("HSET", score_mapping_key, score, external_id)
