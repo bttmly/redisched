@@ -27,4 +27,4 @@ redis.call("HSET", score_mapping_key, score, external_id)
 -- put the job into the zset; NX option ensures we don't update an existing job
 -- if a job with the same body already exists, this will return 0 so the client
 -- will know the "SCHEDULE" did not succeed
-return redis.call("ZADD", "NX", queue_key, score, body)
+return redis.call("ZADD", queue_key, "NX", score, body)
