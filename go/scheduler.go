@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io/ioutil"
 	"log"
 	"strings"
@@ -18,53 +19,60 @@ type Scheduler struct {
 	sSchedule *redis.Script
 }
 
-func NewScheduler() *Scheduler {
-	s := &Scheduler{
-		redis:     redis.NewClient(),
+type Job struct {
+	body []byte
+}
+
+func NewScheduler(r *redis.Client) *Scheduler {
+	return &Scheduler{
+		redis:     r,
 		sGet:      makeScript("../lua/get.lua"),
 		sCancel:   makeScript("../lua/cancel.lua"),
 		sSchedule: makeScript("../lua/schedule.lua"),
 	}
-
-	return s
 }
 
-func (s *Scheduler) Cancel(id string) {
+func (s *Scheduler) Cancel(id string) error {
 	cmd := s.sCancel.Eval(s.redis, make([]string), id)
 	err, result := cmd.Result()
 	if err {
-		log.Fatal("error on cancel", err.Error())
+		return err
+		// log.Fatal("error on cancel", err.Error())
 	}
 
 	log.Println("result:", result)
-	return
 }
 
-func (s *Scheduler) Get() {
+func (s *Scheduler) Get() (error, Job) {
 	now := time.Now().UnixNano()
 	cmd := s.sGet.Eval(s.redis, make([]string), now)
 
 	err, result := cmd.Result()
 	if err {
-		log.Fatal("error on get", err.Error())
+		return err, nil
+		// log.Fatal("error on get", err.Error())
 	}
 
 	log.Println("result:", result)
-	return
+
+	return &Job{
+		body: result,
+	}
 }
 
-func (s *Scheduler) Schedule(id string, body string, delay int) {
+func (s *Scheduler) Schedule(id string, body string, delay int) error {
 	score = time.Now().UnixNano() + 1e9*delay
 	salted := strings.Join(body, uniuri.New())
 	cmd := s.sGet.Eval(s.redis, make([]string), id, salted, score)
 
 	err, result := cmd.Result()
 	if err {
-		log.Fatal("error on get", err.Error())
+		return err
 	}
 
-	log.Println("result:", result)
-	return
+	if result == false {
+		return errors.New("Job content was not unique")
+	}
 }
 
 func makeScript(fileName string) *redis.Script {
