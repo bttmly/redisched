@@ -13,7 +13,7 @@ describe("scheduler", function () {
     scheduler = new Scheduler(redis);
   });
 
-  afterEach(function() {
+  afterEach(function () {
     return redis.flushdb()
       .then(() => redis.disconnect());
   });
@@ -22,10 +22,10 @@ describe("scheduler", function () {
     return Promise.resolve()
       // check immediate job
       .then(function () {
-        return scheduler.schedule("id1", "hello")
+        return scheduler.schedule("id1", "hello");
       })
       .then(function (out) {
-        return scheduler.get().then(job => expect(job).toBe("hello"))
+        return scheduler.get().then(job => expect(job).toBe("hello"));
       })
       // check a delayed job
       .then(function () {
@@ -42,7 +42,9 @@ describe("scheduler", function () {
       })
       // check cancellation
       .then(function () {
-        return scheduler.schedule("id3", "cancelled").then(() => scheduler.readyCount())
+        return scheduler.schedule("id3", "will_be_cancelled")
+          .then(() => wait(200))
+          .then(() => scheduler.readyCount());
       })
       .then(function (count) {
         expect(count).toBe(1);

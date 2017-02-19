@@ -6,10 +6,11 @@ local score_mapping_key = "__REDIS_SCHED_SCORE_TO_ID__"
 
 local external_id = ARGV[1]
 -- bodies should be unique. if a repeat is encountered, it will be rejected
+-- clients should ensure body randomness to avoid inserts being refused
 local body = ARGV[2]
 local score = ARGV[3]
 
--- scores MUST BE UNIQUE!, so scan forward to find the next available score
+-- scores MUST BE UNIQUE, so scan forward to find the next available score
 -- clients should implement their scores such that they are unlikely to collide
 while true do
   local exists = redis.call("HEXISTS", score_mapping_key, score)

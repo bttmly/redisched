@@ -33,13 +33,14 @@ class Scheduler {
       .then(function (body) {
         if (body === null) return body;
         // slice off the random identifier
-        return body.slice(0, -32)
+        return body.slice(0, -32);
       });
   }
 
   schedule (id, body, delay = 0) {
     const score = ((Date.now() + delay) * MULTIPLIER) + this._inc();
-    const randomSuffix = crypto.randomBytes(16).toString("hex") // body uniqueness is important
+    const randomSuffix = crypto.randomBytes(16).toString("hex");
+    body = body + randomSuffix; // body uniqueness is important
     return this._redis.schedulerSchedule(id, body, score)
   }
 
@@ -48,7 +49,7 @@ class Scheduler {
   }
 
   readyCount () {
-    return this._redis.zrangebyscore(this._keys.queue, 0, Date.now())
+    return this._redis.zrangebyscore(this._keys.queue, 0, Date.now() * MULTIPLIER)
       .then(data => data.length);
   }
 
@@ -79,10 +80,7 @@ class Scheduler {
   }
 
   _inc () {
-    this._ctr++;
-    if (this._ctr === MULTIPLIER) {
-      this._ctr = 0;
-    }
+    this._ctr = (++this._ctr) % MULTIPLIER;
     return this._ctr;
   }
 }
