@@ -1,14 +1,13 @@
 package main
 
 import (
-	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"strings"
 	"time"
 
 	"github.com/dchest/uniuri"
-
 	redis "gopkg.in/redis.v5"
 )
 
@@ -20,10 +19,10 @@ type Scheduler struct {
 }
 
 type Job struct {
-	body []byte
+	body string
 }
 
-func NewScheduler(r *redis.Client) *Scheduler {
+func MakeScheduler(r *redis.Client) *Scheduler {
 	return &Scheduler{
 		redis:     r,
 		sGet:      makeScript("../lua/get.lua"),
@@ -33,51 +32,55 @@ func NewScheduler(r *redis.Client) *Scheduler {
 }
 
 func (s *Scheduler) Cancel(id string) error {
-	cmd := s.sCancel.Eval(s.redis, make([]string), id)
-	err, result := cmd.Result()
-	if err {
+	cmd := s.sCancel.Eval(s.redis, make([]string, 0), id)
+	result, err := cmd.Result()
+	if err != nil {
 		return err
 		// log.Fatal("error on cancel", err.Error())
 	}
 
 	log.Println("result:", result)
+	return nil
 }
 
-func (s *Scheduler) Get() (error, Job) {
+func (s *Scheduler) Get() (*Job, error) {
 	now := time.Now().UnixNano()
-	cmd := s.sGet.Eval(s.redis, make([]string), now)
+	cmd := s.sGet.Eval(s.redis, make([]string, 0), now)
 
-	err, result := cmd.Result()
-	if err {
-		return err, nil
+	result, err := cmd.Result()
+	if err != nil {
+		return &Job{}, err
 		// log.Fatal("error on get", err.Error())
 	}
 
 	log.Println("result:", result)
 
 	return &Job{
-		body: result,
-	}
+		body: result.(string),
+	}, nil
 }
 
 func (s *Scheduler) Schedule(id string, body string, delay int) error {
-	score = time.Now().UnixNano() + 1e9*delay
-	salted := strings.Join(body, uniuri.New())
-	cmd := s.sGet.Eval(s.redis, make([]string), id, salted, score)
+	score := time.Now().UnixNano() + int64(1e9*delay)
+	salted := strings.Join([]string{body, uniuri.New()}, "")
+	cmd := s.sGet.Eval(s.redis, make([]string, 0), id, salted, score)
 
-	err, result := cmd.Result()
-	if err {
+	result, err := cmd.Result()
+	if err != nil {
 		return err
 	}
 
-	if result == false {
-		return errors.New("Job content was not unique")
-	}
+	fmt.Println("SCHEDULE result:", result)
+	return nil
+	//
+	// if result == false {
+	// 	return errors.New("Job content was not unique")
+	// }
 }
 
 func makeScript(fileName string) *redis.Script {
 	buf, err := ioutil.ReadFile("../lua/get.lua")
-	if err {
+	if err != nil {
 		log.Fatal("couldn't read file", err)
 	}
 
