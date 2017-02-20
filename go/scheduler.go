@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -22,12 +23,12 @@ type Job struct {
 	body string
 }
 
-func MakeScheduler(r *redis.Client) *Scheduler {
+func NewScheduler(r *redis.Client) *Scheduler {
 	return &Scheduler{
 		redis:     r,
-		sGet:      makeScript("../lua/get.lua"),
-		sCancel:   makeScript("../lua/cancel.lua"),
-		sSchedule: makeScript("../lua/schedule.lua"),
+		sGet:      makeScript("./lua/get.lua"),
+		sCancel:   makeScript("./lua/cancel.lua"),
+		sSchedule: makeScript("./lua/schedule.lua"),
 	}
 }
 
@@ -48,22 +49,34 @@ func (s *Scheduler) Get() (*Job, error) {
 	cmd := s.sGet.Eval(s.redis, make([]string, 0), now)
 
 	result, err := cmd.Result()
+	log.Println("result:", result)
+
 	if err != nil {
 		return &Job{}, err
 		// log.Fatal("error on get", err.Error())
 	}
 
-	log.Println("result:", result)
+	body := result.(string)
+
+	// in Schedule() we pad the body with 16 random characters to ensure uniqueness
+	// so we need to slice them back off here
+	body = body[:len(body)-16]
 
 	return &Job{
-		body: result.(string),
+		body,
 	}, nil
 }
 
 func (s *Scheduler) Schedule(id string, body string, delay int) error {
-	score := time.Now().UnixNano() + int64(1e9*delay)
+	// TODO -- nanoseconds are too big to use as redis zset scores. Should use
+	// milliseconds as the Node application does
+	// score := time.Now().UnixNano() + int64(1e9*delay)
+
+	score := time.Now().Unix() + int64(delay)
 	salted := strings.Join([]string{body, uniuri.New()}, "")
-	cmd := s.sGet.Eval(s.redis, make([]string, 0), id, salted, score)
+	cmd := s.sSchedule.Eval(s.redis, []string{}, id, salted, score)
+
+	fmt.Println("putting in score", score)
 
 	result, err := cmd.Result()
 	if err != nil {
@@ -78,8 +91,12 @@ func (s *Scheduler) Schedule(id string, body string, delay int) error {
 	// }
 }
 
-func makeScript(fileName string) *redis.Script {
-	buf, err := ioutil.ReadFile("../lua/get.lua")
+func makeScript(relPath string) *redis.Script {
+	path, err := filepath.Abs(relPath)
+	if err != nil {
+		log.Fatal("couldn't resolve path", err)
+	}
+	buf, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Fatal("couldn't read file", err)
 	}

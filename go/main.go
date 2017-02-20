@@ -14,9 +14,9 @@ func main() {
 		DB:       0,  // use default DB
 	})
 
-	s := MakeScheduler(r)
+	s := NewScheduler(r)
 
-	err := s.Schedule("id1", "golang", 0)
+	err := s.Schedule("id1", "a message sent from golang scheduler!", 1)
 	fatal("error on schedule", err)
 
 	job, err := s.Get()

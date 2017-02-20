@@ -6,7 +6,7 @@ local score_mapping_key = "__REDIS_SCHED_SCORE_TO_ID__"
 
 local max_score = ARGV[1]
 
--- redis.debug("max score:", max_score)
+redis.debug("max score:", max_score)
 
 -- get an item from the delayed queue
 local resp = redis.call(
@@ -20,7 +20,7 @@ local resp = redis.call(
   1
 )
 
--- redis.debug("got job", resp)
+redis.debug("got job", resp)
 
 -- no jobs are ready, return nil
 if table.getn(resp) == 0 then
