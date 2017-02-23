@@ -8,14 +8,16 @@ local jobs_key = "__REDIS_SCHED_JOBS__" .. topic
 local queued_key = "__REDIS_SCHED_QUEUED__" .. topic
 local reserved_key = "__REDIS_SCHED_RESERVED__" .. topic
 
-found_job = redis.call(
+redis.debug("max_score", max_score);
+
+local found_job = redis.call(
   "ZRANGEBYSCORE", -- operation
   queued_key, -- zset key
   0, -- min
   max_score, -- max
   "LIMIT", -- limit
   0, -- offset
-  1, -- count
+  1 -- count
 )
 
 -- no job is ready
@@ -24,7 +26,7 @@ if table.getn(found_job) == 0 then
 end
 
 local id = found_job[1]
-local job = redis.call("HGET")
+local job = redis.call("HGET", jobs_key, id)
 
 -- sanity check
 if job == nil then

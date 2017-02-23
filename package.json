@@ -2,9 +2,9 @@
   "name": "redisched",
   "version": "0.1.0",
   "description": "",
-  "main": "js/scheduler.js",
+  "main": "node/scheduler",
   "directories": {
-    "test": "test"
+    "test": "mocha node/test"
   },
   "scripts": {
     "test": "mocha js/test.js",

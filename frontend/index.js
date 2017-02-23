@@ -45,15 +45,10 @@ io.on("connection", socket => {
   });
 });
 
-
 // receive completed messages from scheduler via HTTP
 app.post("/receive", function (req, res) {
   receiveMessage(req.body);
   res.status(200).json({ ok: true });
-});
-
-server.listen(port, function () {
-  console.log("************ started ************");
 });
 
 app.use(function (req, res, next) {
@@ -62,23 +57,11 @@ app.use(function (req, res, next) {
   next(err);
 });
 
-if (app.get("env") === "development") {
-  app.use(function (err, req, res, next) {
-    res.status(err.status || 500);
-    res.json({
-      message: err.message,
-      error: err,
-    });
-  });
-}
-
-// production error handler
-// no stacktraces leaked to user
 app.use(function (err, req, res, next) {
   res.status(err.status || 500);
   res.json({
     message: err.message,
-    error: {},
+    error: err,
   });
 });
 
@@ -98,4 +81,9 @@ function sendHttp (data) {
   });
 }
 
-module.exports = { app, server, io };
+const FRONTEND_PORT = 9191;
+server.listen(FRONTEND_PORT, function () {
+  console.log("frontend started on 9191");
+});
+
+// module.exports = { app, server, io };

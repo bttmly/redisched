@@ -1,12 +1,12 @@
 /* misc express crap */
-const express = require('express');
-const logger = require('morgan');
-const cookieParser = require('cookie-parser');
-const bodyParser = require('body-parser');
+const express = require("express");
+const logger = require("morgan");
+const cookieParser = require("cookie-parser");
+const bodyParser = require("body-parser");
 
 const app = express();
 
-app.use(logger('dev'));
+app.use(logger("dev"));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -23,6 +23,7 @@ s.subscribe("default", send).then(function () {
   r.close();
 });
 
+const CONSUMER_URL = "http://localhost:9191";
 function send (message) {
   fetch(CONSUMER_URL, {
     method: "POST",
@@ -40,7 +41,7 @@ app.post("/schedule/:topic", function (req, res, next) {
   }
 
   return s.schedule({ id, topic, contents, delay }).then(result => {
-    console.log("cancel id %s topic %s:", id, topic result)
+    console.log("cancel id %s topic %s:", id, topic, result);
     res.status(200).json({ success: true });
   });
 });
@@ -53,14 +54,14 @@ app.post("/cancel/:topic", function (req, res, next) {
   }
 
   return s.delete({ id, topic }).then(result => {
-    console.log("cancel id %s topic %s:", id, topic result)
+    console.log("cancel id %s topic %s:", id, topic, result);
     res.status(200).json({ success: true });
   });
 });
 
 /* more express crap */
 app.use(function(req, res, next) {
-  const err = new Error('Not Found');
+  const err = new Error("Not Found");
   err.status = 404;
   next(err);
 });
@@ -73,9 +74,9 @@ app.use(function(err, req, res, next) {
   });
 });
 
-const debug = require('debug')('server');
-app.set('port', process.env.PORT || 3000);
-
-const server = app.listen(app.get('port'), function() {
-  debug('Express server listening on port ' + server.address().port);
+app.set("port", 7171);
+app.listen(app.get("port"), function() {
+  console.log("backend started on 7171");
 });
+
+process.on("unhandledRejection", err => { throw err; });

@@ -1,9 +1,10 @@
 const path = require("path");
 const fs = require("fs");
-const debug = require("debug")("node-scheduler");
+// const debug = require("debug")("node-scheduler");
 
 const REQUEUE_INTERVAL = 5 * 1000; // 5 seconds
 const RESERVE_INTERVAL = 500; // 1/2 second
+const DEFAULT_TTR = 60 * 1000; // 1 minute
 
 class Scheduler {
   constructor (redis) {
@@ -47,6 +48,10 @@ class Scheduler {
           job.topic = topic;
           fn(job);
           _loop();
+        })
+        .catch(err => {
+          console.log(`error on reserve ${topic}: ${err.message}`);
+          throw err;
         });
       };
 
@@ -59,10 +64,14 @@ class Scheduler {
       const _loop = () => {
         if (!this.isSubscribed(topic)) return resolve();
         this._requeue(topic).then(count => {
-          debug("requeued", count);
+          // debug("requeued", count);
           // don't want to wait until start of next loop to check this
           if (!this.isSubscribed(topic)) return resolve();
           setTimeout(_loop, REQUEUE_INTERVAL);
+        })
+        .catch(err => {
+          console.log(`error on requeue ${topic}: ${err.message}`);
+          throw err;
         });
       };
 
@@ -73,12 +82,14 @@ class Scheduler {
   async _reserve (topic) {
     const now = Date.now();
     const ttr = 10 * 60 * 1000; // long TTR of 10 minutes
+    console.log("reserve [%s %s %s]", topic, now, ttr);
     return this._redis.__reserve(topic, now, ttr);
   }
 
   async _requeue (topic) {
     const now = Date.now();
     const limit = 1000;
+    console.log("requeue [%s %s %s]", topic, now, limit);
     return this._redis.__requeue(topic, now, limit);
   }
 
@@ -109,7 +120,7 @@ const scripts = {
 function defineCommands (redis) {
   Object.keys(scripts).forEach(function (name) {
     redis.defineCommand(`__${name}`, {
-      numerOfKeys: 0,
+      numberOfKeys: 0,
       lua: scripts[name],
     });
   });

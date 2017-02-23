@@ -1,94 +1,80 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
 	"io/ioutil"
 	"log"
 	"path/filepath"
-	"strings"
 	"time"
 
-	"github.com/dchest/uniuri"
 	redis "gopkg.in/redis.v5"
 )
 
+var put = makeScript("./lua/put.lua")
+var del = makeScript("./lua/delete.lua")
+var release = makeScript("./lua/release.lua")
+var reserve = makeScript("./lua/reserve.lua")
+var requeue = makeScript("./lua/requeue.lua")
+
 type Scheduler struct {
-	redis     *redis.Client
-	sGet      *redis.Script
-	sCancel   *redis.Script
-	sSchedule *redis.Script
+	redis         *redis.Client
+	subscriptions map[string]bool
 }
 
 type Job struct {
 	body string
+	id   string
 }
 
 func NewScheduler(r *redis.Client) *Scheduler {
 	return &Scheduler{
-		redis:     r,
-		sGet:      makeScript("./lua/get.lua"),
-		sCancel:   makeScript("./lua/cancel.lua"),
-		sSchedule: makeScript("./lua/schedule.lua"),
+		redis:         r,
+		subscriptions: map[string]bool{},
 	}
 }
 
-func (s *Scheduler) Cancel(id string) error {
-	cmd := s.sCancel.Eval(s.redis, make([]string, 0), id)
-	result, err := cmd.Result()
-	if err != nil {
-		return err
-		// log.Fatal("error on cancel", err.Error())
-	}
+var RESERVE_SLEEP = time.Duration(250) * time.Millisecond
 
-	log.Println("result:", result)
-	return nil
+func (s *Scheduler) Subscribe(topic string) chan *Job {
+	ch := make(chan *Job)
+	s.subscriptions[topic] = true
+
+	go func() {
+		for {
+			if s.IsSubscribed(topic) == false {
+				close(ch)
+				return
+			}
+
+			now := time.Now().Unix()
+			cmd := reserve.Eval(s.redis, make([]string, 0), now)
+			result, err := cmd.Result()
+
+			if err != nil {
+				log.Fatal("error on reserve from redis", err)
+			}
+
+			if result == nil {
+				if s.IsSubscribed(topic) == false {
+					close(ch)
+					return
+				}
+				time.Sleep(RESERVE_SLEEP)
+				continue
+			}
+
+			bytes := result.([]byte)
+			job := &Job{}
+			json.Unmarshal(bytes, job)
+			ch <- job
+		}
+	}()
+
+	return ch
 }
 
-func (s *Scheduler) Get() (*Job, error) {
-	now := time.Now().UnixNano()
-	cmd := s.sGet.Eval(s.redis, make([]string, 0), now)
-
-	result, err := cmd.Result()
-	log.Println("result:", result)
-
-	if err != nil {
-		return &Job{}, err
-		// log.Fatal("error on get", err.Error())
-	}
-
-	body := result.(string)
-
-	// in Schedule() we pad the body with 16 random characters to ensure uniqueness
-	// so we need to slice them back off here
-	body = body[:len(body)-16]
-
-	return &Job{
-		body,
-	}, nil
-}
-
-func (s *Scheduler) Schedule(id string, body string, delay int) error {
-	// TODO -- nanoseconds are too big to use as redis zset scores. Should use
-	// milliseconds as the Node application does
-	// score := time.Now().UnixNano() + int64(1e9*delay)
-
-	score := time.Now().Unix() + int64(delay)
-	salted := strings.Join([]string{body, uniuri.New()}, "")
-	cmd := s.sSchedule.Eval(s.redis, []string{}, id, salted, score)
-
-	fmt.Println("putting in score", score)
-
-	result, err := cmd.Result()
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("SCHEDULE result:", result)
-	return nil
-	//
-	// if result == false {
-	// 	return errors.New("Job content was not unique")
-	// }
+func (s *Scheduler) IsSubscribed(topic string) bool {
+	return s.subscriptions[topic] == true
 }
 
 func makeScript(relPath string) *redis.Script {
