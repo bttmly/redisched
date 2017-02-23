@@ -12,6 +12,8 @@
     "express": "~4.9.0",
     "ioredis": "^2.5.0",
     "morgan": "~1.3.0",
-    "node-fetch": "^1.6.3"
+    "node-fetch": "^1.6.3",
+    "request": "^2.79.0",
+    "request-promise": "^4.1.1"
   }
 }

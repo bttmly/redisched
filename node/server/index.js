@@ -12,7 +12,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 
 /* the good stuff */
-const fetch = require("node-fetch");
+const request = require("request-promise");
 const Redis = require("ioredis");
 const Scheduler = require("../scheduler");
 const r = new Redis();
@@ -23,14 +23,16 @@ s.subscribe("default", send).then(function () {
   r.close();
 });
 
-const CONSUMER_URL = "http://localhost:9191";
 function send (message) {
-  fetch(CONSUMER_URL, {
+  const CONSUMER_URL = "http://localhost:9191/receive";
+  console.log("send to client", message);
+  return request({
+    url: CONSUMER_URL,
     method: "POST",
-    body: JSON.stringify(message),
-  }).then(() => {
-    // TODO -- s.delete the message here!
-  });
+    json: true,
+    body: message,
+  })
+  .then(() => s.remove(message));
 }
 
 app.post("/schedule/:topic", function (req, res, next) {
@@ -40,8 +42,8 @@ app.post("/schedule/:topic", function (req, res, next) {
     return next(new Error("Only accepting messages on topic `default`"));
   }
 
-  return s.schedule({ id, topic, contents, delay }).then(result => {
-    console.log("cancel id %s topic %s:", id, topic, result);
+  return s.put({ id, topic, contents, delay }).then(result => {
+    console.log("schedule id %s topic %s:", id, topic, result);
     res.status(200).json({ success: true });
   });
 });
@@ -67,6 +69,7 @@ app.use(function(req, res, next) {
 });
 
 app.use(function(err, req, res, next) {
+  console.log("server error", err);
   res.status(err.status || 500);
   res.json({
     message: err.message,

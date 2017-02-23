@@ -1,4 +1,3 @@
-const port = process.env.PORT || 3000;
 const express = require("express");
 const path = require("path");
 const logger = require("morgan");
@@ -15,8 +14,6 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
-
-
 const server = require("http").Server(app);
 const io = require("socket.io")(server);
 
@@ -24,14 +21,17 @@ const io = require("socket.io")(server);
 io.on("connection", socket => {
   socket.on("send_message", data => {
 
-    // console.log("frontend application sending", data.id);
+    const message = {
+      id: data.id,
+      contents: data.body,
+      delay: data.delay,
+      created_at: Date.now(),
+      status: "pending",
+      topic: "default",
+    };
 
-    data.created_at = Date.now();
-    data.status = "pending";
-    data.topic = "scheduler_demo";
-
-    sendHttp(data).then(function () {
-      io.emit("message_scheduled", data);
+    sendHttp(message).then(function () {
+      io.emit("message_scheduled", message);
     })
     .catch(err => debug("error from message_scheduled request", err.message));
   });
@@ -58,6 +58,7 @@ app.use(function (req, res, next) {
 });
 
 app.use(function (err, req, res, next) {
+  console.log("server error", err);
   res.status(err.status || 500);
   res.json({
     message: err.message,
@@ -74,7 +75,7 @@ function receiveMessage (message) {
 function sendHttp (data) {
   const WEBHOOK_PORT = 7171;
   return request({
-    url: `http://localhost:${WEBHOOK_PORT}/`,
+    url: `http://localhost:${WEBHOOK_PORT}/schedule/${data.topic}`,
     method: "POST",
     json: true,
     body: data,

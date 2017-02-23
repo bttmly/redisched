@@ -79,30 +79,30 @@ class Scheduler {
     });
   }
 
-  async _reserve (topic) {
+  _reserve (topic) {
     const now = Date.now();
-    const ttr = 10 * 60 * 1000; // long TTR of 10 minutes
-    console.log("reserve [%s %s %s]", topic, now, ttr);
+    const ttr = 60 * 1000;
+    // console.log("reserve [%s %s %s]", topic, now, ttr);
     return this._redis.__reserve(topic, now, ttr);
   }
 
-  async _requeue (topic) {
+  _requeue (topic) {
     const now = Date.now();
     const limit = 1000;
-    console.log("requeue [%s %s %s]", topic, now, limit);
+    // console.log("requeue [%s %s %s]", topic, now, limit);
     return this._redis.__requeue(topic, now, limit);
   }
 
-  async put ({ topic, id, contents, delay }) {
+  put ({ topic, id, contents, delay }) {
     const score = Date.now() + (delay * 1000);
     return this._redis.__put(topic, id, contents, score);
   }
 
-  async cancel ({ topic, id }) {
+  remove ({ topic, id }) {
     return this._redis.__delete(topic, id);
   }
 
-  async release ({ topic, id, score }) {
+  release ({ topic, id, score }) {
     return this._redis.__release(topic, id, score);
   }
 }

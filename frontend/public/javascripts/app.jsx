@@ -82,6 +82,10 @@ class App extends React.Component {
   _onCompleted (id) {
     this.setState(state => {
       const [[target], others] = _.partition(state.messages, m => m.id === id);
+      if (target == null) {
+        console.log("no message found for id", id)
+        return { messages: others };
+      }
       target.status = "completed";
       return { messages: others.concat(target) };
     })
