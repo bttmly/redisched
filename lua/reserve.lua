@@ -1,0 +1,37 @@
+-- returns 1 if a job was found and removed, 0 if not found
+
+local topic = ARGV[1]
+local max_score = ARGV[2]
+local ttr = ARGV[3]
+
+local jobs_key = "__REDIS_SCHED_JOBS__" .. topic
+local queued_key = "__REDIS_SCHED_QUEUED__" .. topic
+local reserved_key = "__REDIS_SCHED_RESERVED__" .. topic
+
+found_job = redis.call(
+  "ZRANGEBYSCORE", -- operation
+  queued_key, -- zset key
+  0, -- min
+  max_score, -- max
+  "LIMIT", -- limit
+  0, -- offset
+  1, -- count
+)
+
+-- no job is ready
+if table.getn(found_job) == 0 then
+  return nil
+end
+
+local id = found_job[1]
+local job = redis.call("HGET")
+
+-- sanity check
+if job == nil then
+  return redis.error_response(string.format("found queued id %s but no job", id))
+end
+
+redis.call("ZREM", queued_key, id)
+redis.call("ZADD", reserved_key, max_score + ttr, id)
+
+return string.format('{"id":"%s","job":"%s"}', id, job)

@@ -1,0 +1,70 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  padding: 50px;
+  font: 16px "Avenir Next", Helvetica, Arial, sans-serif;
+}
+
+a {
+  color: #00B7FF;
+}
+
+#listing {
+  display: flex;
+}
+
+#listing ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+#listing li {
+  font-family: Consolas, monospace;
+}
+
+.listing-panel {
+  flex: 1;
+  padding: 1rem;
+}
+
+.listing-message {
+  padding: 4px;
+  margin-bottom: 2px;
+  line-height: 1rem;
+  color: white;
+  user-select: none;
+  cursor: pointer;
+}
+
+.listing-message.pending {
+  background-color: #f39c12;
+}
+
+.listing-message.completed {
+  background-color: #27ae60;
+}
+
+.listing-message.cancelled {
+  background-color: #e74c3c;
+}
+
+.message-field {
+  font: inherit;
+  margin-right: 1rem;
+  padding: 4px;
+}
+
+.message-button {
+  font: inherit;
+  padding: 6px;
+  background: #9b59b6;
+  color: white;
+  border: none;
+  border-radius: 3px;
+}
+
+.message-button:active {
+  background: #8e44ad
+}
