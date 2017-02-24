@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"path/filepath"
@@ -9,6 +9,11 @@ import (
 	"time"
 
 	redis "gopkg.in/redis.v5"
+)
+
+const (
+	defaultReserveSleep = time.Duration(250) * time.Millisecond
+	defaultRequeueSleep = time.Duration(1) * time.Second
 )
 
 var put = makeScript("./lua/put.lua")
@@ -20,11 +25,26 @@ var requeue = makeScript("./lua/requeue.lua")
 type Scheduler struct {
 	redis         *redis.Client
 	subscriptions map[string]Topic
+	requeueSleep  time.Duration
+	reserveSleep  time.Duration
 }
 
-type Job struct {
-	body string
-	id   string
+type ReadyJob struct {
+	Topic    string
+	ID       string
+	Contents string
+}
+
+type Cancellation struct {
+	Topic string
+	ID    string
+}
+
+type ScheduledJob struct {
+	Topic    string
+	ID       string
+	Contents string
+	Delay    time.Duration
 }
 
 type Topic struct {
@@ -36,20 +56,23 @@ func NewScheduler(r *redis.Client) *Scheduler {
 	return &Scheduler{
 		redis:         r,
 		subscriptions: map[string]Topic{},
+		requeueSleep:  defaultRequeueSleep,
+		reserveSleep:  defaultReserveSleep,
 	}
 }
 
-var RESERVE_SLEEP = time.Duration(250) * time.Millisecond
-var REQUEUE_SLEEP = time.Duration(1) * time.Second
+func (s *Scheduler) Subscribe(topic string) (chan *ReadyJob, error) {
+	if s.IsSubscribed(topic) {
+		return nil, fmt.Errorf("Already subscribed to topic %s", topic)
+	}
 
-func (s *Scheduler) Subscribe(topic string) chan *Job {
 	ch := s.reserveLoop(topic)
 	s.requeueLoop(topic)
-	return ch
+	return ch, nil
 }
 
-func (s *Scheduler) reserveLoop(topic string) chan *Job {
-	ch := make(chan *Job)
+func (s *Scheduler) reserveLoop(topic string) chan *ReadyJob {
+	ch := make(chan *ReadyJob)
 	s.add(topic)
 	go func() {
 		for {
@@ -59,7 +82,12 @@ func (s *Scheduler) reserveLoop(topic string) chan *Job {
 			}
 
 			now := time.Now().Unix()
-			result, err := reserve.Eval(s.redis, make([]string, 0), now).Result() // TODO fix arguments here
+			result, err := reserve.Eval(s.redis,
+				make([]string, 0),
+				topic,
+				now,
+				60, // TTR -- TODO -- should be configurable
+			).Result()
 
 			if err != nil {
 				log.Fatal("error on reserve from redis", err)
@@ -67,14 +95,19 @@ func (s *Scheduler) reserveLoop(topic string) chan *Job {
 
 			if result == nil {
 				// if there are no jobs ready, don't bog down the server with another request
-				// immediately -- sleep for a bit second then try and again
-				time.Sleep(RESERVE_SLEEP)
+				// immediately -- sleep for a bit then try and again
+				time.Sleep(s.reserveSleep)
 				continue
 			}
 
-			job := &Job{}
-			json.Unmarshal(result.([]byte), job)
-			ch <- job
+			fmt.Println("got a ready job:", result)
+
+			results := result.([]string)
+			ch <- &ReadyJob{
+				ID:       results[0],
+				Contents: results[1],
+				Topic:    topic,
+			}
 		}
 		s.done(topic)
 	}()
@@ -91,12 +124,19 @@ func (s *Scheduler) requeueLoop(topic string) {
 			}
 
 			now := time.Now().Unix()
-			_, err := requeue.Eval(s.redis, make([]string, 0), now).Result() // TODO fix arguments here
+			_, err := requeue.Eval(
+				s.redis,
+				make([]string, 0),
+				topic,
+				now,
+				// lua script provides a default limit for last argument
+			).Result()
+
 			if err != nil {
 				log.Fatal("error on requeue from redis", err)
 			}
 
-			time.Sleep(REQUEUE_SLEEP)
+			time.Sleep(s.requeueSleep)
 		}
 		s.done(topic)
 	}()
@@ -120,6 +160,44 @@ func (s *Scheduler) IsSubscribed(topic string) bool {
 	return t.subscribed
 }
 
+func (s *Scheduler) Put(j ScheduledJob) error {
+	score := time.Now().Add(j.Delay).Unix()
+	_, err := put.Eval(
+		s.redis,
+		make([]string, 0),
+		j.Topic,
+		j.ID,
+		j.Contents,
+		score,
+	).Result()
+	return err
+}
+
+// { topic, id }
+func (s *Scheduler) Remove(c Cancellation) error {
+	_, err := del.Eval(
+		s.redis,
+		make([]string, 0),
+		c.Topic,
+		c.ID,
+	).Result()
+	return err
+}
+
+// { topic, id }
+func (s *Scheduler) Release(c Cancellation) {
+	score := time.Now().Unix()
+	_, err := release.Eval(
+		s.redis,
+		make([]string, 0),
+		c.Topic,
+		c.ID,
+		score,
+	).Result()
+	return err
+}
+
+// add to the waitGroup for a given topic
 func (s *Scheduler) add(topic string) {
 	t, ok := s.subscriptions[topic]
 	if !ok {
@@ -128,6 +206,7 @@ func (s *Scheduler) add(topic string) {
 	t.wg.Add(1)
 }
 
+// done on the waitGroup for a given topic
 func (s *Scheduler) done(topic string) {
 	t, ok := s.subscriptions[topic]
 	if ok == false {

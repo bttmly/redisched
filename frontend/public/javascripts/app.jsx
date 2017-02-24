@@ -72,29 +72,20 @@ class App extends React.Component {
   }
 
   _onCancelled (id) {
-    this.setState(state => {
-      const [[target], others] = _.partition(state.messages, m => m.id === id);
-      target.status = "cancelled";
-      return { messages: others.concat(target) };
-    })
+    this.setState(state => ({
+      messages: setStatusOnId(state.messages, id, "cancelled"),
+    });
   }
 
   _onCompleted (id) {
-    this.setState(state => {
-      const [[target], others] = _.partition(state.messages, m => m.id === id);
-      if (target == null) {
-        console.log("no message found for id", id)
-        return { messages: others };
-      }
-      target.status = "completed";
-      return { messages: others.concat(target) };
-    })
+    this.setState(state => ({
+      messages: setStatusOnId(state.messages, id, "completed"),
+    });
   }
 
   _clearMessage (id) {
-    this.setState(state => {
-      messages = _.reject(state.messages, m => m.id === id);
-      return { messages };
+    this.setState(state => ({
+      messages: _.reject(state.messages, m => m.id === id),
     });
   }
 
@@ -158,6 +149,12 @@ function timeUntilReady (message) {
 function uid () {
   return Array.from(crypto.getRandomValues(new Uint32Array(2)))
     .map(n => n.toString(16)).join("");
+}
+
+function setStatusOnId (messages, id, status) {
+  const [[target], others] = _.partition(state.messages, m => m.id === id);
+  target.status = "completed";
+  return others.concat(target);
 }
 
 function _newState (delay) {

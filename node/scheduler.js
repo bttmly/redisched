@@ -44,8 +44,10 @@ class Scheduler {
             return setTimeout(_loop, RESERVE_INTERVAL);
           }
 
-          const job = JSON.parse(result);
-          job.topic = topic;
+          console.log("THE RESULT:", result);
+          const job = {
+            topic, id: result[0], contents: result[1],
+          };
           fn(job);
           _loop();
         })

@@ -36,4 +36,4 @@ end
 redis.call("ZREM", queued_key, id)
 redis.call("ZADD", reserved_key, max_score + ttr, id)
 
-return string.format('{"id":"%s","job":"%s"}', id, job)
+return {id, job}
