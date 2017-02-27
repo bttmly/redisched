@@ -44,7 +44,6 @@ class Scheduler {
             return setTimeout(_loop, RESERVE_INTERVAL);
           }
 
-          console.log("THE RESULT:", result);
           const job = {
             topic, id: result[0], contents: result[1],
           };

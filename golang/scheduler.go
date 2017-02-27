@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 )
 
 const (
-	defaultReserveSleep = time.Duration(250) * time.Millisecond
+	defaultReserveSleep = time.Duration(1) * time.Second
 	defaultRequeueSleep = time.Duration(1) * time.Second
 )
 
@@ -30,9 +31,9 @@ type Scheduler struct {
 }
 
 type ReadyJob struct {
-	Topic    string
-	ID       string
-	Contents string
+	Topic    string `json:"topic"`
+	ID       string `json:"id"`
+	Contents string `json:"contents"`
 }
 
 type Cancellation struct {
@@ -66,6 +67,11 @@ func (s *Scheduler) Subscribe(topic string) (chan *ReadyJob, error) {
 		return nil, fmt.Errorf("Already subscribed to topic %s", topic)
 	}
 
+	s.subscriptions[topic] = Topic{
+		subscribed: true,
+		wg:         &sync.WaitGroup{},
+	}
+
 	ch := s.reserveLoop(topic)
 	s.requeueLoop(topic)
 	return ch, nil
@@ -77,35 +83,35 @@ func (s *Scheduler) reserveLoop(topic string) chan *ReadyJob {
 	go func() {
 		for {
 			if !s.IsSubscribed(topic) {
+				fmt.Println("exiting reserve loop")
 				close(ch)
 				break
 			}
 
 			now := time.Now().Unix()
-			result, err := reserve.Eval(s.redis,
-				make([]string, 0),
+			results, err := reserve.Eval(s.redis,
+				[]string{},
 				topic,
 				now,
 				60, // TTR -- TODO -- should be configurable
 			).Result()
 
-			if err != nil {
-				log.Fatal("error on reserve from redis", err)
+			if err != nil && err != redis.Nil {
+				log.Fatal("error on reserve from redis ------", err, results)
 			}
 
-			if result == nil {
+			if results == nil {
 				// if there are no jobs ready, don't bog down the server with another request
 				// immediately -- sleep for a bit then try and again
 				time.Sleep(s.reserveSleep)
 				continue
 			}
 
-			fmt.Println("got a ready job:", result)
-
-			results := result.([]string)
+			str := fmt.Sprintf("%v", results)
+			parts := strings.Split(str[1:len(str)-1], " ")
 			ch <- &ReadyJob{
-				ID:       results[0],
-				Contents: results[1],
+				ID:       parts[0],
+				Contents: parts[1],
 				Topic:    topic,
 			}
 		}
@@ -120,13 +126,14 @@ func (s *Scheduler) requeueLoop(topic string) {
 	go func() {
 		for {
 			if !s.IsSubscribed(topic) {
+				fmt.Println("exiting requeue loop")
 				break
 			}
 
 			now := time.Now().Unix()
 			_, err := requeue.Eval(
 				s.redis,
-				make([]string, 0),
+				[]string{},
 				topic,
 				now,
 				// lua script provides a default limit for last argument
@@ -150,6 +157,7 @@ func (s *Scheduler) Unsubscribe(topic string) {
 	}
 	t.subscribed = false
 	t.wg.Wait()
+	delete(s.subscriptions, topic)
 }
 
 func (s *Scheduler) IsSubscribed(topic string) bool {
@@ -185,7 +193,7 @@ func (s *Scheduler) Remove(c Cancellation) error {
 }
 
 // { topic, id }
-func (s *Scheduler) Release(c Cancellation) {
+func (s *Scheduler) Release(c Cancellation) error {
 	score := time.Now().Unix()
 	_, err := release.Eval(
 		s.redis,

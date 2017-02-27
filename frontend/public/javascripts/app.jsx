@@ -71,26 +71,30 @@ class App extends React.Component {
     }));
   }
 
-  _onCancelled (id) {
+  _clearMessage (id) {
     this.setState(state => ({
-      messages: setStatusOnId(state.messages, id, "cancelled"),
-    });
+      messages: state.messages.filter(m => m.id !== id),
+    }));
+  }
+
+  _onCancelled (id) {
+    this._setStatusOnMessageId(id, "cancelled");
   }
 
   _onCompleted (id) {
-    this.setState(state => ({
-      messages: setStatusOnId(state.messages, id, "completed"),
-    });
-  }
-
-  _clearMessage (id) {
-    this.setState(state => ({
-      messages: _.reject(state.messages, m => m.id === id),
-    });
+    this._setStatusOnMessageId(id, "completed");
   }
 
   _cancelMessage (id) {
     this._socket.emit("cancel_message", { id });
+  }
+
+  _setStatusOnMessageId (id, status) {
+    this.setState(({messages}) => {
+      const [[target], others] = _.partition(messages, m => m.id === id);
+      target.status = status;
+      return { messages: others.concat(target) };
+    });
   }
 }
 
@@ -149,12 +153,6 @@ function timeUntilReady (message) {
 function uid () {
   return Array.from(crypto.getRandomValues(new Uint32Array(2)))
     .map(n => n.toString(16)).join("");
-}
-
-function setStatusOnId (messages, id, status) {
-  const [[target], others] = _.partition(state.messages, m => m.id === id);
-  target.status = "completed";
-  return others.concat(target);
 }
 
 function _newState (delay) {
