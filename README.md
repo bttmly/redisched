@@ -1,20 +1,16 @@
 # redisched
 
-`redisched` is a small collection Lua scripts that implement a simple, cancellable, delayed-job interface on top of Redis. This repo includes a basic Node.js client that uses these scripts via the Redis [`EXEC`](http://redis.io/commands/exec) command. However, The Lua scripts are general-purpose can be used by a client written in any programming language. Many common Redis clients expose an ergonomic interface for scripting.
+## What is this?
+A programming language-agnostic job queue implementation backed by Redis. The bulk of the logic of this system lives in Lua scripts that can be used by any Redis client that supports scripting. In addition, for a given programming language or platform, a bit of glue code must be written to wire the whole thing together. Further, it will be up to you to attach some kind of networking interface to the system so it can receive and dispatch jobs.
 
-### Scripts/methods
+## Why would I use it?
+The biggest motivating factor, and functional difference from work queues like Beanstalkd or Disque is that `redisched` jobs have a client-provided identifier, and can be accessed or deleted by that identifier. This would be particularly useful if an application has some kind of well-known identifying scheme. For example, upon user sign up an email job is scheduled for three days later, with the identifier `need_some_help_email_<user_id>`. Now if the user completes some significant action before the three days are up, we can just delete the job with the id `need_some_help_email_<user_id>`.
 
-- `schedule(id: string, body: string, expiration: number): number`
-Schedules a job to run at the expiration time. A client might expose this as 'delay' and add that argument to the current time stamp. The id can be used to cancel the job before it runs. Returns `1` if the job is successfully added, otherwise `0`.
+## How do I use it?
+This repository contains two implementations, one for [Node.js]() and the other in [Go](). These can be used as is and hooked up to whatever networking system you choose -- for instance, it is trivial to have the Scheduler receive jobs from a RabbitMQ instance and dispatch them when ready to a web hook. For other platforms, you will need to implement the Scheduler by hand, which should be straightforward.
 
-- `cancel(id: string): number`
-Cancels the job with the given id. Returns `1` if a job was cancelled, otherwise `0`
+## Implementing a scheduler
+There are five key scheduling operations, three of which are "active" (i.e. a client initiates them) and two of which are "passive" (i.e. they happen in the background, on a loop). The active operations are `PUT` (add a job), `DELETE` (remove a job), and `RELEASE` (requeue a single job). The background operation is `REQUEUE` (requeues all reserved jobs which have timed out). `RESERVE` is the operation to get a job, and can be called either passively or actively. This largely depends on how the scheduler is used -- for instance if it is acting as a "push" service (POST-ing data to a web hook for example) then the scheduler would probably run `RESERVE` in a loop and fire off an HTTP request whenever a job becomes available. On the other hand, if it is acting as a "pull" service (receiving inbound requests for ready jobs) then `RESERVE` would just be called when a client asked for a job. As a rough measure, the Node.js and Go implementations of this system are around 100-200 lines of code.
 
-- `get(max number): string?`
-Gets the first job with expiration less than `max`. If there is a ready job, returns it as a string, otherwise returns `nil`. Generally you'll pass the current Unix timestamp as the `max` argument. The argument is necessary because the script can't use something like `redis.time()` to supply it (for reasons related to replication and determinism).
-
-### Configuration
-The Lua scripts use three keys to store data: a sorted set for the jobs themselves and two hashes for mapping between ids and sorted set scores. The initial values are `__REDIS_SCHED_DELAYED_QUEUE__`, `__REDIS_SCHED_ID_TO_SCORE__`, `__REDIS_SCHED_SCORE_TO_ID__` and can be configured by simple string replacement on the script.
-
-### Rationale
-This behavior is *almost* possible to implement entirely on the client side. The issue is that it's not possible to find a job by it's externally supplied id and remove it from the sorted set in a single round trip. This opens the door for races where two clients end up consuming the same job. The necessity for supporting externally supplied ids is that it allows job producers to carry less state. For instance, upon user sign up you might schedule a job with id `need_help_email:<userid>` to run a few days later. However, if in that time the user performs some action that causes the email to be unnecessary, the producer knows it can cancel a job with the specific id `need_help_email:<userid>`. This is preferable to the other situation, where the scheduler responds to the application with the id of the new job -- the application must record that id somewhere and map it to that user's id. Systems like [Disque](https://github.com/antirez/disque) and [Beanstalkd](https://github.com/kr/beanstalkd) both return the id of the created job, forcing the job producer to store that somewhere if it might be cancelled later.
+## Networking
+You have unlimited flexibility in how you connect a scheduler to other services. This respository contains simple HTTP servers in [Node.js]() and [Go]() that show 
