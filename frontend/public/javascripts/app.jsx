@@ -9,13 +9,13 @@ message schema
 }
 */
 
-const { React, _ } = window;
+const { React, ReactDOM, io } = window;
 
 class App extends React.Component {
   constructor (props) {
     super(props);
     this.state = { messages: [] };
-    this._socket = window.io();
+    this._socket = io();
     this._socket.on("message_scheduled", m => this._onScheduled(m));
     this._socket.on("message_cancelled", ({id}) => this._onCancelled(id));
     this._socket.on("message_completed", ({id}) => this._onCompleted(id));
@@ -23,7 +23,7 @@ class App extends React.Component {
   }
 
   render () {
-    const [pending, finished] = _.partition(
+    const [pending, finished] = partition(
       this.state.messages, m => m.status === "pending"
     );
 
@@ -62,12 +62,12 @@ class App extends React.Component {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   _onScheduled (message) {
     this.setState(state => ({
-      messages: state.messages.concat(message)
+      messages: state.messages.concat(message),
     }));
   }
 
@@ -91,7 +91,7 @@ class App extends React.Component {
 
   _setStatusOnMessageId (id, status) {
     this.setState(({messages}) => {
-      const [[target], others] = _.partition(messages, m => m.id === id);
+      const [[target], others] = partition(messages, m => m.id === id);
       target.status = status;
       return { messages: others.concat(target) };
     });
@@ -120,7 +120,7 @@ class MessageForm extends React.Component {
           Submit
         </button>
       </div>
-    )
+    );
   }
 
   _inputField (stateValue) {
@@ -131,7 +131,7 @@ class MessageForm extends React.Component {
         type="text"
         placeholder={stateValue}
         onChange={evt => this.setState({
-          [stateValue]: evt.target.value
+          [stateValue]: evt.target.value,
         })}
       />
     );
@@ -142,6 +142,17 @@ ReactDOM.render(
   <App />,
   document.getElementById("app")
 );
+
+function sample (arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function partition (arr, fn) {
+  return arr.reduce(function (results, item) {
+    results[fn(item) ? 0 : 1].push(item);
+    return results;
+  }, [[], []]);
+}
 
 function timeUntilReady (message) {
   const now = Date.now();
@@ -166,7 +177,7 @@ function _newState (delay) {
 
   return {
     id: uid(),
-    body: _.sample(MESSAGES),
+    body: sample(MESSAGES),
     delay: delay || DEFAULT_DELAY,
   };
 }

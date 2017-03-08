@@ -1,21 +1,26 @@
 const path = require("path");
 const fs = require("fs");
-// const debug = require("debug")("node-scheduler");
+const debug = require("debug")("node-scheduler");
 
-const REQUEUE_INTERVAL = 5 * 1000; // 5 seconds
-const RESERVE_INTERVAL = 500; // 1/2 second
-const DEFAULT_TTR = 60 * 1000; // 1 minute
+const DEFAULTS = {
+  requeueInterval: 1 * 1000, // 1 second,
+  reserveInterval: 500, // 1/2 second
+  ttr: 60 * 1000, // 1 minute
+};
 
 class Scheduler {
-  constructor (redis) {
+  constructor (redis, _options = {}) {
     this._redis = redis;
     this._subscriptions = Object.create(null);
+    const options = Object.assign({}, DEFAULTS, _options);
+    this._requeueInterval = options.requeueInterval;
+    this._reserveInterval = options.reserveInterval;
+    this._ttr = options.ttr;
     defineCommands(this._redis);
   }
 
-  // could this be implemented as an async generator?
   subscribe (topic, fn) {
-    if (this._subscriptions.has(topic)) {
+    if (this._subscriptions[topic]) {
       throw new Error(`Topic ${topic} already subscribed`);
     }
 
@@ -25,74 +30,55 @@ class Scheduler {
     ]);
   }
 
-  unsubscribe (topic) {
-    if (!this.isSubscribed(topic)) return Promise.resolve();
-    const p = this._subscriptions[topic];
+  async unsubscribe (topic) {
+    if (!this.isSubscribed(topic)) return;
+    await this._subscriptions[topic];
     delete this._subscriptions[topic];
-    return p;
   }
 
   isSubscribed (topic) {
     return !!this._subscriptions[topic];
   }
 
-  _reserveLoop (topic, fn) {
-    return new Promise(resolve => {
-      const _loop = () => {
-        if (!this.isSubscribed(topic)) return resolve();
-        this._reserve(topic).then(result => {
-          if (result == null) {
-            if (!this.isSubscribed(topic)) return resolve();
-            return setTimeout(_loop, RESERVE_INTERVAL);
-          }
-
-          const job = {
-            topic, id: result[0], contents: result[1],
-          };
-          fn(job);
-          _loop();
-        })
-        .catch(err => {
-          console.log(`error on reserve ${topic}: ${err.message}`);
-          throw err;
-        });
-      };
-
-      _loop();
-    });
+  async _reserveLoop (topic, handleJob) {
+    try {
+      while (this.isSubscribed(topic)) {
+        const result = await this.reserve(topic);
+        if (result == null) {
+          await sleep(this._reserveInterval);
+          continue;
+        }
+        handleJob({ topic, id: result[0], contents: result[1] });
+      }
+    } catch (err) {
+      console.log(`error in reserve loop -- ${topic}: ${err.message}`);
+      throw err;
+    }
   }
 
-  _requeueLoop (topic) {
-    return new Promise(resolve => {
-      const _loop = () => {
-        if (!this.isSubscribed(topic)) return resolve();
-        this._requeue(topic).then(count => {
-          // debug("requeued", count);
-          // don't want to wait until start of next loop to check this
-          if (!this.isSubscribed(topic)) return resolve();
-          setTimeout(_loop, REQUEUE_INTERVAL);
-        })
-        .catch(err => {
-          console.log(`error on requeue ${topic}: ${err.message}`);
-          throw err;
-        });
-      };
-
-      _loop();
-    });
+  async _requeueLoop (topic) {
+    try {
+      while (this.isSubscribed(topic)) {
+        const count = await this.requeue(topic);
+        debug("requeued [%s %s] jobs", topic, count);
+        await sleep(this._requeueInterval);
+      }
+    } catch (err) {
+      console.log(`error in requeue loop -- ${topic}: ${err.message}`);
+      throw err;
+    }
   }
 
-  _reserve (topic) {
+  reserve (topic) {
     const now = Date.now();
-    const ttr = 60 * 1000;
-    // console.log("reserve [%s %s %s]", topic, now, ttr);
-    return this._redis.__reserve(topic, now, ttr);
+    debug("reserve [%s %s %s]", topic, now, this._ttr);
+    return this._redis.__reserve(topic, now, this._ttr);
   }
 
-  _requeue (topic) {
+  requeue (topic) {
     const now = Date.now();
     const limit = 1000;
-    // console.log("requeue [%s %s %s]", topic, now, limit);
+    debug("requeue [%s %s %s]", topic, now, limit);
     return this._redis.__requeue(topic, now, limit);
   }
 
@@ -128,6 +114,10 @@ function defineCommands (redis) {
     });
   });
   return redis;
+}
+
+function sleep (ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 module.exports = Scheduler;

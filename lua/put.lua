@@ -1,9 +1,5 @@
 -- returns 1 if job put successfully, 0 otherwise (i.e. duplicate id)
-
-local topic = ARGV[1]
-local id = ARGV[2]
-local body = ARGV[3]
-local score = ARGV[4]
+local topic, id, body, score = unpack(ARGV)
 
 local jobs_key = "__REDIS_SCHED_JOBS__" .. topic
 local queued_key = "__REDIS_SCHED_QUEUED__" .. topic

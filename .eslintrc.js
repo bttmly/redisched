@@ -6,10 +6,10 @@ module.exports = {
     "mocha": true,
   },
   "parserOptions": {
-    "ecmaVersion": 2017,
-  },
-  "ecmaFeatures": {
-    "jsx": true,
+    "ecmaVersion": 8,
+    "ecmaFeatures": {
+      "jsx": true,
+    },
   },
   "rules": {
     "quotes": "error",

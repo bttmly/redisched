@@ -1,8 +1,5 @@
 -- returns an {id, contents} tuple if a job is ready otherwise nil
-
-local topic = ARGV[1]
-local max_score = ARGV[2]
-local ttr = ARGV[3]
+local topic max_score, ttr = unpack(ARGV)
 
 local jobs_key = "__REDIS_SCHED_JOBS__" .. topic
 local queued_key = "__REDIS_SCHED_QUEUED__" .. topic

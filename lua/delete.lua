@@ -1,7 +1,5 @@
 -- returns 1 if a job was found and removed, 0 if not found
-
-local topic = ARGV[1]
-local id = ARGV[2]
+local topic, id = unpack(ARGV)
 
 local jobs_key = "__REDIS_SCHED_JOBS__" .. topic
 local queued_key = "__REDIS_SCHED_QUEUED__" .. topic

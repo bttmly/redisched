@@ -1,8 +1,5 @@
 -- returns a number representing number of jobs requeued
-
-local topic = ARGV[1]
-local max_score = ARGV[2]
-local limit = ARGV[3]
+local topic, max_score, limit = unpack(ARGV)
 
 local jobs_key = "__REDIS_SCHED_JOBS__" .. topic
 local queued_key = "__REDIS_SCHED_QUEUED__" .. topic

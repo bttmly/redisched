@@ -11,5 +11,8 @@
     "test-go": "go run go/main.go go/scheduler.go"
   },
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "eslint": "^3.17.1"
+  }
 }

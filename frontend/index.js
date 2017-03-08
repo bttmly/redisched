@@ -61,7 +61,7 @@ app.use(function (err, req, res, next) {
   if (err.status !== 404) {
     console.log("server error", err);
   }
-  
+
   res.status(err.status || 500);
   res.json({
     message: err.message,
