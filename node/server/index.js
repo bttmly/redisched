@@ -18,10 +18,14 @@ const Scheduler = require("../scheduler");
 const r = new Redis();
 const s = new Scheduler(r);
 
-s.subscribe("default", send).then(function () {
-  console.log("SUBSCRIPTION ENDED!");
-  r.close();
-});
+s.subscribe("default", send);
+
+process.on("SIGINT", () => {
+  console.log("gracefully closing");
+  s.unsubscribe("default")
+    .then(() => r.quit())
+    .then(() => process.exit());
+  });
 
 function send (message) {
   const CONSUMER_URL = "http://localhost:9191/receive";

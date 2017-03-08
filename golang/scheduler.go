@@ -172,7 +172,7 @@ func (s *Scheduler) Put(j ScheduledJob) error {
 	score := time.Now().Add(j.Delay).Unix()
 	_, err := put.Eval(
 		s.redis,
-		make([]string, 0),
+		[]string{},
 		j.Topic,
 		j.ID,
 		j.Contents,
@@ -185,7 +185,7 @@ func (s *Scheduler) Put(j ScheduledJob) error {
 func (s *Scheduler) Remove(c Cancellation) error {
 	_, err := del.Eval(
 		s.redis,
-		make([]string, 0),
+		[]string{},
 		c.Topic,
 		c.ID,
 	).Result()
@@ -197,7 +197,7 @@ func (s *Scheduler) Release(c Cancellation) error {
 	score := time.Now().Unix()
 	_, err := release.Eval(
 		s.redis,
-		make([]string, 0),
+		[]string{},
 		c.Topic,
 		c.ID,
 		score,

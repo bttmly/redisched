@@ -9,7 +9,7 @@ const DEFAULT_TTR = 60 * 1000; // 1 minute
 class Scheduler {
   constructor (redis) {
     this._redis = redis;
-    this._subscriptions = new Set();
+    this._subscriptions = Object.create(null);
     defineCommands(this._redis);
   }
 
@@ -18,20 +18,22 @@ class Scheduler {
     if (this._subscriptions.has(topic)) {
       throw new Error(`Topic ${topic} already subscribed`);
     }
-    this._subscriptions.add(topic);
 
-    return Promise.all([
+    this._subscriptions[topic] = Promise.all([
       this._reserveLoop(topic, fn),
       this._requeueLoop(topic),
     ]);
   }
 
   unsubscribe (topic) {
-    return this._subscriptions.delete(topic);
+    if (!this.isSubscribed(topic)) return Promise.resolve();
+    const p = this._subscriptions[topic];
+    delete this._subscriptions[topic];
+    return p;
   }
 
   isSubscribed (topic) {
-    return this._subscriptions.has(topic);
+    return !!this._subscriptions[topic];
   }
 
   _reserveLoop (topic, fn) {

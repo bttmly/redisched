@@ -1,4 +1,4 @@
--- returns 1 if a job was found and removed, 0 if not found
+-- returns an {id, contents} tuple if a job is ready otherwise nil
 
 local topic = ARGV[1]
 local max_score = ARGV[2]

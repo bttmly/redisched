@@ -3,7 +3,7 @@ const expect = require("expect");
 
 const Scheduler = require("./scheduler");
 
-const wait = delay => new Promise(r => setTimeout(r, delay))
+const wait = delay => new Promise(r => setTimeout(r, delay));
 
 describe("scheduler", function () {
   let redis;
@@ -13,46 +13,29 @@ describe("scheduler", function () {
     scheduler = new Scheduler(redis);
   });
 
-  afterEach(function () {
-    return redis.flushdb()
-      .then(() => redis.disconnect());
+  afterEach(async function () {
+    await redis.flushdb();
+    return redis.disconnect();
   });
 
-  it("works", function () {
-    return Promise.resolve()
-      // check immediate job
-      .then(function () {
-        return scheduler.schedule("id1", "hello");
-      })
-      .then(function (out) {
-        return scheduler.get().then(job => expect(job).toBe("hello"));
-      })
-      // check a delayed job
-      .then(function () {
-        return scheduler.schedule("id2", "delayed", 100)
-      })
-      .then(function () {
-        return scheduler.get().then(job => expect(job).toBe(null))
-      })
-      .then(function () {
-        return wait(200).then(() => scheduler.get())
-      })
-      .then(function (job) {
-        expect(job).toBe("delayed");
-      })
-      // check cancellation
-      .then(function () {
-        return scheduler.schedule("id3", "will_be_cancelled")
-          .then(() => wait(200))
-          .then(() => scheduler.readyCount());
-      })
-      .then(function (count) {
-        expect(count).toBe(1);
-        return scheduler.cancel("id3").then(() => scheduler.readyCount())
-      })
-      .then(function (count) {
-        expect(count).toBe(0);
-      });
-    });
+  it("works", async function () {
+    throw new Error("TODO -- need to update test w/ new API");
+
+    await scheduler.put("id1", "hello");
+    expect(await scheduler.get()).toBe("hello");
+
+    await scheduler.put("id2", "delayed", 100);
+    expect(await scheduler.get()).toBe(null);
+
+    await wait(200);
+    expect(await scheduler.get()).toBe("delayed");
+
+    await scheduler.put("id3", "will_be_cancelled");
+    await wait(200);
+    expect(await scheduler.readyCount()).toBe(1);
+
+    await scheduler.cancel("id3");
+    expect(await scheduler.readyCount()).toBe(0);
+  });
 
 });

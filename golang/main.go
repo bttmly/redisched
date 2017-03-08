@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -27,8 +26,11 @@ func main() {
 		resp, err := http.Post("http://localhost:9191/receive", "application/json", bytes.NewBuffer(data))
 		fatal("http post error", err)
 
-		fmt.Println("sent", j, "status", resp.StatusCode)
-		s.Remove(Cancellation{j.Topic, j.ID})
+		if resp.StatusCode != 200 {
+			log.Fatal("error posting to webhook", resp.Status)
+		}
+
+		fatal("error on remove", s.Remove(Cancellation{j.Topic, j.ID}))
 	}
 
 	go func() {
@@ -39,27 +41,24 @@ func main() {
 		}
 	}()
 
-	putHandler := func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/schedule/", func(w http.ResponseWriter, r *http.Request) {
 		j := ScheduledJob{}
 		err := json.NewDecoder(r.Body).Decode(&j)
 		fatal("schedule: json decode failed", err)
 		j.Topic = r.URL.Path[len("/schedule/"):]
 		j.Delay *= time.Second
-		fmt.Println("scheduled job", j)
-		err = s.Put(j)
-		fatal("error on put", err)
-	}
+		// fmt.Println("scheduled job", j)
+		fatal("error on put", s.Put(j))
+	})
 
-	cancelHandler := func(w http.ResponseWriter, r *http.Request) {
-		j := Cancellation{}
-		err := json.NewDecoder(r.Body).Decode(&j)
+	http.HandleFunc("/cancel/", func(w http.ResponseWriter, r *http.Request) {
+		c := Cancellation{}
+		err := json.NewDecoder(r.Body).Decode(&c)
 		fatal("cancel: json decode failed", err)
-		j.Topic = r.URL.Path[len("/schedule/"):]
-		fmt.Println("cancel job", j)
-	}
+		c.Topic = r.URL.Path[len("/cancel/"):]
+		fatal("error on cancel", s.Remove(c))
+	})
 
-	http.HandleFunc("/schedule/", putHandler)
-	http.HandleFunc("/cancel/", cancelHandler)
 	http.ListenAndServe(":7171", nil)
 }
 

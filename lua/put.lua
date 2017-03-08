@@ -7,7 +7,6 @@ local score = ARGV[4]
 
 local jobs_key = "__REDIS_SCHED_JOBS__" .. topic
 local queued_key = "__REDIS_SCHED_QUEUED__" .. topic
--- local reserved_key = "__REDIS_SCHED_RESERVED__" .. topic
 
 local did_add = redis.call("ZADD", queued_key, "NX", score, id)
 if did_add == 0 then return 0 end
