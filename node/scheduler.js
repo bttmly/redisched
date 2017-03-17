@@ -24,20 +24,25 @@ class Scheduler {
       throw new Error(`Topic ${topic} already subscribed`);
     }
 
-    this._subscriptions[topic] = Promise.all([
-      this._reserveLoop(topic, fn),
-      this._requeueLoop(topic),
-    ]);
+    this._subscriptions[topic] = {
+      subscribed: true,
+      promise: Promise.all([
+        this._reserveLoop(topic, fn),
+        this._requeueLoop(topic),
+      ]),
+    };
   }
 
   async unsubscribe (topic) {
     if (!this.isSubscribed(topic)) return;
-    await this._subscriptions[topic];
+    this._subscriptions[topic].subscribed = false;
+    await this._subscriptions[topic].promise;
     delete this._subscriptions[topic];
   }
 
   isSubscribed (topic) {
-    return !!this._subscriptions[topic];
+    const s = this._subscriptions[topic];
+    return !!(s && s.subscribed);
   }
 
   async _reserveLoop (topic, handleJob) {
