@@ -1,12 +1,10 @@
 -- returns an {id, contents} tuple if a job is ready otherwise nil
--- puts the job in the reserved queue for later
-local topic, max_score, ttr = unpack(ARGV)
+-- DELETES the job; cannot be requeud automatically later
+local topic, max_score = unpack(ARGV)
 
 local jobs_key = "__REDIS_SCHED_JOBS__" .. topic
 local queued_key = "__REDIS_SCHED_QUEUED__" .. topic
 local reserved_key = "__REDIS_SCHED_RESERVED__" .. topic
-
-redis.debug("max_score", max_score);
 
 local found_job = redis.call(
   "ZRANGEBYSCORE", -- operation
@@ -32,6 +30,6 @@ if job == nil then
 end
 
 redis.call("ZREM", queued_key, id)
-redis.call("ZADD", reserved_key, max_score + ttr, id)
+redis.call("HDEL", jobs_key, id)
 
 return {id, job}
