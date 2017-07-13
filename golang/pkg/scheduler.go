@@ -1,10 +1,8 @@
-package main
+package redisched
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -17,11 +15,11 @@ const (
 	defaultRequeueSleep = time.Duration(1) * time.Second
 )
 
-var put = makeScript("./lua/put.lua")
-var del = makeScript("./lua/delete.lua")
-var release = makeScript("./lua/release.lua")
-var reserve = makeScript("./lua/reserve.lua")
-var requeue = makeScript("./lua/requeue.lua")
+var put = redis.NewScript(RedisPutScript)
+var del = redis.NewScript(RedisDeleteScript)
+var release = redis.NewScript(RedisReleaseScript)
+var reserve = redis.NewScript(RedisReserveScript)
+var requeue = redis.NewScript(RedisRequeueScript)
 
 type Scheduler struct {
 	redis         *redis.Client
@@ -221,17 +219,4 @@ func (s *Scheduler) done(topic string) {
 		return
 	}
 	t.wg.Done()
-}
-
-func makeScript(relPath string) *redis.Script {
-	path, err := filepath.Abs(relPath)
-	if err != nil {
-		log.Fatal("couldn't resolve path", err)
-	}
-	buf, err := ioutil.ReadFile(path)
-	if err != nil {
-		log.Fatal("couldn't read file", err)
-	}
-
-	return redis.NewScript(string(buf))
 }

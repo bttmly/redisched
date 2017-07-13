@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	scheduler "github.com/nickb1080/redisched/golang/pkg"
+
 	redis "gopkg.in/redis.v5"
 )
 
@@ -17,9 +19,9 @@ func main() {
 		DB:       0,  // use default DB
 	})
 
-	s := NewScheduler(r)
+	s := scheduler.NewScheduler(r)
 
-	send := func(j *ReadyJob) {
+	send := func(j *scheduler.ReadyJob) {
 		data, err := json.Marshal(j)
 		fatal("json marshal failed", err)
 
@@ -30,7 +32,7 @@ func main() {
 			log.Fatal("error posting to webhook", resp.Status)
 		}
 
-		fatal("error on remove", s.Remove(Cancellation{j.Topic, j.ID}))
+		fatal("error on remove", s.Remove(scheduler.Cancellation{Topic: j.Topic, ID: j.ID}))
 	}
 
 	go func() {
@@ -42,7 +44,7 @@ func main() {
 	}()
 
 	http.HandleFunc("/schedule/", func(w http.ResponseWriter, r *http.Request) {
-		j := ScheduledJob{}
+		j := scheduler.ScheduledJob{}
 		err := json.NewDecoder(r.Body).Decode(&j)
 		fatal("schedule: json decode failed", err)
 		j.Topic = r.URL.Path[len("/schedule/"):]
@@ -52,7 +54,7 @@ func main() {
 	})
 
 	http.HandleFunc("/cancel/", func(w http.ResponseWriter, r *http.Request) {
-		c := Cancellation{}
+		c := scheduler.Cancellation{}
 		err := json.NewDecoder(r.Body).Decode(&c)
 		fatal("cancel: json decode failed", err)
 		c.Topic = r.URL.Path[len("/cancel/"):]
