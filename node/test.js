@@ -19,23 +19,26 @@ describe("scheduler", function () {
   });
 
   it("works", async function () {
-    throw new Error("TODO -- need to update test w/ new API");
 
-    await scheduler.put("id1", "hello");
-    expect(await scheduler.get()).toBe("hello");
+    await scheduler.put({ topic: "default", id: "id1", contents: "hello", delay: 0 });
+    await wait(100);
 
-    await scheduler.put("id2", "delayed", 100);
-    expect(await scheduler.get()).toBe(null);
+    expect(await scheduler.pull("default")).toEqual({ id: "id1", contents: "hello" });
 
+    await scheduler.put({ topic: "default", id: "id2", contents: "delayed", delay: 1 });
+    expect(await scheduler.pull("default")).toBe(null);
+
+    await wait(2000);
+    expect(await scheduler.pull("default")).toEqual({ id: "id2", contents: "delayed" });
+
+    await scheduler.put({ topic: "default", id: "id3", contents: "will_be_cancelled", delay: 0 });
     await wait(200);
-    expect(await scheduler.get()).toBe("delayed");
+    expect(await scheduler.readyCount("default")).toBe(1);
 
-    await scheduler.put("id3", "will_be_cancelled");
-    await wait(200);
-    expect(await scheduler.readyCount()).toBe(1);
+    expect(await scheduler.remove({ topic: "default", id: "id3" })).toBe(true);
+    expect(await scheduler.readyCount("default")).toBe(0);
 
-    await scheduler.cancel("id3");
-    expect(await scheduler.readyCount()).toBe(0);
+    expect(await scheduler.remove({ topic: "default", id: "id3" })).toBe(false);
   });
 
 });

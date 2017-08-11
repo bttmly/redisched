@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -39,6 +40,7 @@ func main() {
 		ch, err := s.Subscribe("default")
 		fatal("error on subscribe", err)
 		for j := range ch {
+			fmt.Println("job", j)
 			send(j)
 		}
 	}()

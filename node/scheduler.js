@@ -24,13 +24,17 @@ class Scheduler {
       throw new Error(`Topic ${topic} already subscribed`);
     }
 
-    this._subscriptions[topic] = {
+    // TODO: need to provide a way to hook into errors/rejections that
+    // the requeue and reserve loops might hit
+    const subscription = {
       subscribed: true,
       promise: Promise.all([
         this._reserveLoop(topic, fn),
         this._requeueLoop(topic),
       ]),
     };
+
+    this._subscriptions[topic] = subscription;
   }
 
   async unsubscribe (topic) {
@@ -58,6 +62,8 @@ class Scheduler {
     } catch (err) {
       console.log(`error in reserve loop -- ${topic}: ${err.message}`);
       throw err;
+    } finally {
+      debug("reserve loop exiting [%s %s %s]", topic);
     }
   }
 
@@ -71,13 +77,25 @@ class Scheduler {
     } catch (err) {
       console.log(`error in requeue loop -- ${topic}: ${err.message}`);
       throw err;
+    } finally {
+      debug("requeue loop exiting [%s %s %s]", topic);
     }
   }
 
-  reserve (topic) {
+  async reserve (topic) {
+    if (topic == null) throw new Error("Must provide a topic");
     const now = Date.now();
     debug("reserve [%s %s %s]", topic, now, this._ttr);
     return this._redis.__reserve(topic, now, this._ttr);
+  }
+
+  async pull (topic) {
+    if (topic == null) throw new Error("Must provide a topic");
+    const now = Date.now();
+    debug("pull [%s %s %s]", topic, now, this._ttr);
+    const result = await this._redis.__pull(topic, now, this._ttr);
+    if (result == null) return null;
+    return { id: result[0], contents: result[1] };
   }
 
   requeue (topic) {
@@ -87,17 +105,23 @@ class Scheduler {
     return this._redis.__requeue(topic, now, limit);
   }
 
-  put ({ topic, id, contents, delay }) {
+  async put ({ topic , id, contents, delay }) {
     const score = Date.now() + (delay * 1000);
-    return this._redis.__put(topic, id, contents, score);
+    return Boolean(await this._redis.__put(topic, id, contents, score));
   }
 
-  remove ({ topic, id }) {
-    return this._redis.__delete(topic, id);
+  async remove ({ topic, id }) {
+    return Boolean(await this._redis.__delete(topic, id));
   }
 
   release ({ topic, id, score }) {
     return this._redis.__release(topic, id, score);
+  }
+
+  async readyCount (topic) {
+    if (topic == null) throw new Error("Must provide a topic");
+    const now = Date.now();
+    return this._redis.zcount(`__REDIS_SCHED_QUEUED__${topic}`, 0, now);
   }
 }
 
@@ -109,6 +133,7 @@ const scripts = {
   release: readScript("release"),
   requeue: readScript("requeue"),
   reserve: readScript("reserve"),
+  pull: readScript("pull"),
 };
 
 function defineCommands (redis) {
