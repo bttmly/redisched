@@ -15,17 +15,17 @@ This repository contains two implementations, one for [Node.js](https://github.c
 There are five key scheduling operations, three of which are "active" (i.e. a client initiates them) and two of which are "passive" (i.e. they happen in the background, on a loop). The active operations are `PUT` (add a job), `DELETE` (remove a job), and `RELEASE` (requeue a single job). The background operation is `REQUEUE` (requeues all reserved jobs which have timed out). `RESERVE` is the operation to get a job, and can be called either passively or actively. This largely depends on how the scheduler is used -- for instance if it is acting as a "push" service (POST-ing data to a web hook for example) then the scheduler would probably run `RESERVE` in a loop and fire off an HTTP request whenever a job becomes available. On the other hand, if it is acting as a "pull" service (receiving inbound requests for ready jobs) then `RESERVE` would just be called when a client asked for a job. As a rough measure, basic Node.js and Go implementations of this system are around 100-200 lines of code.
 
 ### API
-`reserve()` -- get a job with expiration less than `max`; the job is put in the reserved queue to be requeued later if it is not `released`
+`reserve(topic: String, max: Number, ttr: Number)` -- get a job with expiration less than `max`; the job is put in the reserved queue to be requeued after `ttr` seconds if it is not `released` before then.
 
-`pull()` -- get a job with expiration less than `max`; the job is NOT reserved, it is deleted immediately
+`pull(topic: String, max: Number)` -- get a job with expiration less than `max`; the job is NOT reserved, it is deleted immediately
 
-`put()` -- add a job to the queue
+`put(topic: String, id: String, body: String, expiration: Number)` -- add a job to the topic, with contents `body` and which becomes available for processing at `expiration` time.
 
-`release()` -- delete a job that was previously `reserved`, indicating it has been run successfully
+`release(topic: String, id: String)` -- delete a job that was previously `reserved`, indicating it has been run successfully
 
-`delete()` -- delete a job
+`delete(topic: String, id: String)` -- delete a job. Returns `1` if a job was removed `0` if no job was found.
 
-`requeue()` -- put up to `limit` jobs with expiration less than `max` from the reserved queue into the jobs queue. Since these jobs have exceeded their TTR (time to run) without being `released`, it is assumed they failed.
+`requeue(topic: String, max: Number, limit: Number)` -- put up to `limit` jobs with expiration less than `max` from the reserved queue into the jobs queue. Since these jobs have exceeded their TTR (time to run) without being `released`, it is assumed they failed.
 
 ## Networking
 You have unlimited flexibility in how you connect a scheduler to other services. This respository contains simple  servers in [Node.js](https://github.com/bttmly/redisched/blob/master/node/server/index.js) and [Go](https://github.com/bttmly/redisched/blob/master/golang/main.go) that show how a scheduler might receive and dispatch jobs over HTTP.
