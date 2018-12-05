@@ -19,7 +19,8 @@ describe("scheduler", function () {
   });
 
   it("works", async function () {
-
+    this.timeout(10000);
+    
     await scheduler.put({ topic: "default", id: "id1", contents: "hello", delay: 0 });
     await wait(100);
 

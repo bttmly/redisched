@@ -1,5 +1,3 @@
-const path = require("path");
-const fs = require("fs");
 const debug = require("debug")("node-scheduler");
 
 const DEFAULTS = {
@@ -19,6 +17,42 @@ class Scheduler {
     defineCommands(this._redis);
   }
 
+  // TODO: provide an asyncIterator interface for a subscription
+  async *subscribeSteam (topic) {
+    if (this._subscriptions[topic]) {
+      throw new Error(`Topic ${topic} already subscribed`);
+    }
+
+    let resolve;
+    const promise = new Promise(_resolve => {
+      resolve = _resolve;
+    })
+
+    this._createSubscription(topic, Promise.all([
+      promise,
+      this._requeueLoop(topic),
+    ]))
+
+    try {
+      while (this.isSubscribed(topic)) {
+        const result = await this.reserve(topic);
+        if (result == null) {
+          await sleep(this._reserveInterval);
+          continue;
+        }
+        yield { topic, id: result[0], contents: result[1] };
+      }
+    } catch (err) {
+      console.log(`error in reserve loop -- ${topic}: ${err.message}`);
+      throw err;
+    } finally {
+      // resolve() lets the subscription complete cleanly
+      resolve()
+      await this.unsubscribe(topic)
+      debug("reserve loop exiting [%s %s %s]", topic);
+    }
+  }
+
   subscribe (topic, fn) {
     if (this._subscriptions[topic]) {
       throw new Error(`Topic ${topic} already subscribed`);
@@ -26,15 +60,10 @@ class Scheduler {
 
     // TODO: need to provide a way to hook into errors/rejections that
     // the requeue and reserve loops might hit
-    const subscription = {
-      subscribed: true,
-      promise: Promise.all([
-        this._reserveLoop(topic, fn),
-        this._requeueLoop(topic),
-      ]),
-    };
-
-    this._subscriptions[topic] = subscription;
+    this._createSubscription(topic, Promise.all([
+      this._reserveLoop(topic, fn),
+      this._requeueLoop(topic),
+    ]))
   }
 
   async unsubscribe (topic) {
@@ -114,7 +143,8 @@ class Scheduler {
     return Boolean(await this._redis.__delete(topic, id));
   }
 
-  release ({ topic, id, score }) {
+  // TODO: this requires score but score is not provided to clients
+  async release ({ topic, id, score }) {
     return this._redis.__release(topic, id, score);
   }
 
@@ -122,6 +152,18 @@ class Scheduler {
     if (topic == null) throw new Error("Must provide a topic");
     const now = Date.now();
     return this._redis.zcount(`__REDIS_SCHED_QUEUED__${topic}`, 0, now);
+  }
+
+  async wait (topic) {
+    if (!this.isSubscribed(topic)) {
+      throw new Error("Not subscribed");
+    }
+    await this._subscriptions[topic].promise;
+  }
+
+  _createSubscription (topic, promise) {
+    const subscription = { subscribed: true, promise };
+    this._subscriptions[topic] = subscription;
   }
 }
 
